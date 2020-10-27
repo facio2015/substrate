@@ -95,6 +95,7 @@ mod tests;
 
 use crate::exec::ExecutionContext;
 use crate::wasm::{WasmLoader, WasmVm};
+use crate::storage::Storage;
 
 pub use crate::gas::{Gas, GasMeter};
 pub use crate::exec::{ExecResult, ExecReturnValue};
@@ -407,7 +408,11 @@ where
 
 decl_error! {
 	/// Error for the contracts module.
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Trait>
+	where
+		T::AccountId: UncheckedFrom<T::Hash>,
+		T::AccountId: AsRef<[u8]>,
+	{
 		/// A new schedule must have a greater version than the current one.
 		InvalidScheduleVersion,
 		/// An origin must be signed or inherent and auxiliary sender only provided on inherent.
@@ -459,7 +464,12 @@ decl_error! {
 
 decl_module! {
 	/// Contracts module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call
+	where
+		origin: T::Origin,
+		T::AccountId: UncheckedFrom<T::Hash>,
+		T::AccountId: AsRef<[u8]>,
+	{
 		type Error = Error<T>;
 
 		/// Number of block delay an extrinsic claim surcharge has.
@@ -626,7 +636,10 @@ decl_module! {
 }
 
 /// Public APIs provided by the contracts module.
-impl<T: Trait> Module<T> {
+impl<T: Trait> Module<T>
+where
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
+{
 	/// Perform a call to a specified contract.
 	///
 	/// This function is similar to `Self::call`, but doesn't perform any address lookups and better
@@ -659,7 +672,7 @@ impl<T: Trait> Module<T> {
 			.get_alive()
 			.ok_or(ContractAccessError::IsTombstone)?;
 
-		let maybe_value = storage::read_contract_storage(&contract_info.trie_id, &key);
+		let maybe_value = Storage::<T>::read(&contract_info.trie_id, &key);
 		Ok(maybe_value)
 	}
 
@@ -678,7 +691,10 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Trait> Module<T>
+where
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
+{
 	fn execute_wasm(
 		origin: T::AccountId,
 		gas_meter: &mut GasMeter<T>,
@@ -736,7 +752,10 @@ decl_event! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Contracts {
+	trait Store for Module<T: Trait> as Contracts
+	where
+		T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>
+	{
 		/// Current cost schedule for contracts.
 		CurrentSchedule get(fn current_schedule) config(): Schedule<T> = Default::default();
 		/// A mapping from an original code hash to the original code, untouched by instrumentation.
@@ -764,7 +783,10 @@ pub struct Config<T: Trait> {
 	pub max_value_size: u32,
 }
 
-impl<T: Trait> Config<T> {
+impl<T: Trait> Config<T>
+where
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>
+{
 	fn preload() -> Config<T> {
 		Config {
 			schedule: <Module<T>>::current_schedule(),

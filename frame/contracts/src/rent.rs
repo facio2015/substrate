@@ -22,6 +22,7 @@ use crate::{
 };
 use sp_std::prelude::*;
 use sp_io::hashing::blake2_256;
+use sp_core::crypto::UncheckedFrom;
 use frame_support::storage::child;
 use frame_support::traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, WithdrawReason};
 use frame_support::StorageMap;
@@ -89,7 +90,7 @@ enum Verdict<T: Trait> {
 fn compute_fee_per_block<T: Trait>(
 	free_balance: &BalanceOf<T>,
 	contract: &AliveContractInfo<T>,
-) -> BalanceOf<T> {
+) -> BalanceOf<T> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let free_storage = free_balance
 		.checked_div(&T::RentDepositOffset::get())
 		.unwrap_or_else(Zero::zero);
@@ -117,7 +118,7 @@ fn rent_budget<T: Trait>(
 	total_balance: &BalanceOf<T>,
 	free_balance: &BalanceOf<T>,
 	contract: &AliveContractInfo<T>,
-) -> Option<BalanceOf<T>> {
+) -> Option<BalanceOf<T>> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let subsistence_threshold = Config::<T>::subsistence_threshold_uncached();
 	// Reserved balance contributes towards the subsistence threshold to stay consistent
 	// with the existential deposit where the reserved balance is also counted.
@@ -143,7 +144,7 @@ fn consider_case<T: Trait>(
 	current_block_number: T::BlockNumber,
 	handicap: T::BlockNumber,
 	contract: &AliveContractInfo<T>,
-) -> Verdict<T> {
+) -> Verdict<T> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	// How much block has passed since the last deduction for the contract.
 	let blocks_passed = {
 		// Calculate an effective block number, i.e. after adjusting for handicap.
@@ -222,7 +223,7 @@ fn enact_verdict<T: Trait>(
 	alive_contract_info: AliveContractInfo<T>,
 	current_block_number: T::BlockNumber,
 	verdict: Verdict<T>,
-) -> Option<ContractInfo<T>> {
+) -> Option<ContractInfo<T>> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	match verdict {
 		Verdict::Exempt => return Some(ContractInfo::Alive(alive_contract_info)),
 		Verdict::Kill => {
@@ -275,7 +276,7 @@ fn enact_verdict<T: Trait>(
 ///
 /// NOTE this function performs eviction eagerly. All changes are read and written directly to
 /// storage.
-pub fn collect_rent<T: Trait>(account: &T::AccountId) -> Option<ContractInfo<T>> {
+pub fn collect_rent<T: Trait>(account: &T::AccountId) -> Option<ContractInfo<T>> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let contract_info = <ContractInfoOf<T>>::get(account);
 	let alive_contract_info = match contract_info {
 		None | Some(ContractInfo::Tombstone(_)) => return contract_info,
@@ -307,7 +308,7 @@ pub fn collect_rent<T: Trait>(account: &T::AccountId) -> Option<ContractInfo<T>>
 pub fn snitch_contract_should_be_evicted<T: Trait>(
 	account: &T::AccountId,
 	handicap: T::BlockNumber,
-) -> bool {
+) -> bool where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let contract_info = <ContractInfoOf<T>>::get(account);
 	let alive_contract_info = match contract_info {
 		None | Some(ContractInfo::Tombstone(_)) => return false,
@@ -344,7 +345,7 @@ pub fn snitch_contract_should_be_evicted<T: Trait>(
 /// `RuntimeApi` meaning that the changes will be discarded anyway.
 pub fn compute_rent_projection<T: Trait>(
 	account: &T::AccountId,
-) -> RentProjectionResult<T::BlockNumber> {
+) -> RentProjectionResult<T::BlockNumber> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let contract_info = <ContractInfoOf<T>>::get(account);
 	let alive_contract_info = match contract_info {
 		None | Some(ContractInfo::Tombstone(_)) => return Err(ContractAccessError::IsTombstone),
@@ -415,7 +416,7 @@ pub fn restore_to<T: Trait>(
 	code_hash: CodeHash<T>,
 	rent_allowance: BalanceOf<T>,
 	delta: Vec<crate::exec::StorageKey>,
-) -> Result<(), &'static str> {
+) -> Result<(), &'static str> where T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]> {
 	let mut origin_contract = <ContractInfoOf<T>>::get(&origin)
 		.and_then(|c| c.get_alive())
 		.ok_or("Cannot restore from inexisting or tombstone contract")?;

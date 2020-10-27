@@ -17,9 +17,10 @@
 use crate::{
 	CodeHash, Config, ContractAddressFor, Event, RawEvent, Trait,
 	TrieId, BalanceOf, ContractInfo, TrieIdGenerator,
-	gas::GasMeter, rent, storage, Error, ContractInfoOf
+	gas::GasMeter, rent, storage::{self, Storage}, Error, ContractInfoOf
 };
 use bitflags::bitflags;
+use sp_core::crypto::UncheckedFrom;
 use sp_std::prelude::*;
 use sp_runtime::traits::{Bounded, Zero, Convert, Saturating};
 use frame_support::{
@@ -273,6 +274,7 @@ pub struct ExecutionContext<'a, T: Trait + 'a, V, L> {
 impl<'a, T, E, V, L> ExecutionContext<'a, T, V, L>
 where
 	T: Trait,
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
 	L: Loader<T, Executable = E>,
 	V: Vm<T, Executable = E>,
 {
@@ -385,7 +387,7 @@ where
 		let dest_trie_id = <T as Trait>::TrieIdGenerator::trie_id(&dest);
 
 		let output = self.with_nested_context(dest.clone(), dest_trie_id, |nested| {
-			storage::place_contract::<T>(
+			Storage::<T>::place_contract(
 				&dest,
 				nested
 					.self_trie_id
@@ -502,7 +504,10 @@ fn transfer<'a, T: Trait, V: Vm<T>, L: Loader<T>>(
 	dest: &T::AccountId,
 	value: BalanceOf<T>,
 	ctx: &mut ExecutionContext<'a, T, V, L>,
-) -> Result<(), DispatchError> {
+) -> Result<(), DispatchError>
+where
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
+{
 	use self::TransferCause::*;
 	use self::TransactorKind::*;
 
@@ -549,6 +554,7 @@ struct CallContext<'a, 'b: 'a, T: Trait + 'b, V: Vm<T> + 'b, L: Loader<T>> {
 impl<'a, 'b: 'a, T, E, V, L> Ext for CallContext<'a, 'b, T, V, L>
 where
 	T: Trait + 'b,
+	T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
 	V: Vm<T, Executable = E>,
 	L: Loader<T, Executable = E>,
 {
@@ -561,7 +567,7 @@ where
 				expect can't fail;\
 				qed",
 		);
-		storage::read_contract_storage(trie_id, key)
+		Storage::<T>::read(trie_id, key)
 	}
 
 	fn set_storage(&mut self, key: StorageKey, value: Option<Vec<u8>>) {
@@ -572,12 +578,12 @@ where
 				qed",
 		);
 		if let Err(storage::ContractAbsentError) =
-			storage::write_contract_storage::<T>(&self.ctx.self_account, trie_id, &key, value)
+			Storage::<T>::write(&self.ctx.self_account, trie_id, &key, value)
 		{
 			panic!(
 				"the contract must be in the alive state within the `CallContext`;\
 				the contract cannot be absent in storage;
-				write_contract_storage cannot return `None`;
+				write cannot return `None`;
 				qed"
 			);
 		}
@@ -634,7 +640,7 @@ where
 				a contract has a trie id;\
 				this can't be None; qed",
 		);
-		storage::destroy_contract::<T>(&self_id, self_trie_id);
+		Storage::<T>::destroy_contract(&self_id, self_trie_id);
 		Ok(())
 	}
 
@@ -725,7 +731,7 @@ where
 
 	fn set_rent_allowance(&mut self, rent_allowance: BalanceOf<T>) {
 		if let Err(storage::ContractAbsentError) =
-			storage::set_rent_allowance::<T>(&self.ctx.self_account, rent_allowance)
+			Storage::<T>::set_rent_allowance(&self.ctx.self_account, rent_allowance)
 		{
 			panic!(
 				"`self_account` points to an alive contract within the `CallContext`;
@@ -735,7 +741,7 @@ where
 	}
 
 	fn rent_allowance(&self) -> BalanceOf<T> {
-		storage::rent_allowance::<T>(&self.ctx.self_account)
+		Storage::<T>::rent_allowance(&self.ctx.self_account)
 			.unwrap_or_else(|_| <BalanceOf<T>>::max_value()) // Must never be triggered actually
 	}
 
