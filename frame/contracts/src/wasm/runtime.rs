@@ -827,6 +827,7 @@ define_env!(Env, <E: Ext>,
 	// - output_ptr: a pointer where the output buffer is copied to.
 	// - output_len_ptr: in-out pointer to where the length of the buffer is read from
 	//   and the actual length is written to.
+	// - salt: Used for contract address deriviation. See `fn contract_address`.
 	//
 	// # Errors
 	//
@@ -854,7 +855,8 @@ define_env!(Env, <E: Ext>,
 		address_ptr: u32,
 		address_len_ptr: u32,
 		output_ptr: u32,
-		output_len_ptr: u32
+		output_len_ptr: u32,
+		salt: u64
 	) -> ReturnCode => {
 		ctx.charge_gas(RuntimeToken::InstantiateBase(input_data_len))?;
 		let code_hash: CodeHash<<E as Ext>::T> =
@@ -875,7 +877,8 @@ define_env!(Env, <E: Ext>,
 						&code_hash,
 						value,
 						nested_meter,
-						input_data
+						input_data,
+						salt,
 					)
 				}
 				// there is not enough gas to allocate for the nested call.
