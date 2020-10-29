@@ -19,7 +19,7 @@
 
 use crate::{CodeHash, Schedule, Trait};
 use crate::wasm::env_def::FunctionImplProvider;
-use crate::exec::{Ext, ExecResult};
+use crate::exec::{Ext, ExecResult, AccountIdOf};
 use crate::gas::GasMeter;
 
 use sp_std::prelude::*;
@@ -190,6 +190,7 @@ mod tests {
 		endowment: u64,
 		data: Vec<u8>,
 		gas_left: u64,
+		salt: u64,
 	}
 
 	#[derive(Debug, PartialEq, Eq)]
@@ -199,7 +200,7 @@ mod tests {
 
 	#[derive(Debug, PartialEq, Eq)]
 	struct TransferEntry {
-		to: u64,
+		to: AccountIdOf<Test>,
 		value: u64,
 		data: Vec<u8>,
 	}
@@ -232,12 +233,14 @@ mod tests {
 			endowment: u64,
 			gas_meter: &mut GasMeter<Test>,
 			data: Vec<u8>,
-		) -> Result<(u64, ExecReturnValue), ExecError> {
+			salt: u64,
+		) -> Result<(AccountIdOf<Self::T>, ExecReturnValue), ExecError> {
 			self.instantiates.push(InstantiateEntry {
 				code_hash: code_hash.clone(),
 				endowment,
 				data: data.to_vec(),
 				gas_left: gas_meter.gas_left(),
+				salt,
 			});
 			let address = self.next_account_id;
 			self.next_account_id += 1;
@@ -252,7 +255,7 @@ mod tests {
 		}
 		fn transfer(
 			&mut self,
-			to: &u64,
+			to: &AccountIdOf<Self::T>,
 			value: u64,
 		) -> Result<(), DispatchError> {
 			self.transfers.push(TransferEntry {
@@ -264,7 +267,7 @@ mod tests {
 		}
 		fn call(
 			&mut self,
-			to: &u64,
+			to: &AccountIdOf<Self::T>,
 			value: u64,
 			_gas_meter: &mut GasMeter<Test>,
 			data: Vec<u8>,
@@ -280,7 +283,7 @@ mod tests {
 		}
 		fn terminate(
 			&mut self,
-			beneficiary: &u64,
+			beneficiary: &AccountIdOf<Self::T>,
 		) -> Result<(), DispatchError> {
 			self.terminations.push(TerminationEntry {
 				beneficiary: *beneficiary,
@@ -289,7 +292,7 @@ mod tests {
 		}
 		fn restore_to(
 			&mut self,
-			dest: u64,
+			dest: AccountIdOf<Self::T>,
 			code_hash: H256,
 			rent_allowance: u64,
 			delta: Vec<StorageKey>,
@@ -302,10 +305,10 @@ mod tests {
 			});
 			Ok(())
 		}
-		fn caller(&self) -> &u64 {
+		fn caller(&self) -> &AccountIdOf<Self::T> {
 			&42
 		}
-		fn address(&self) -> &u64 {
+		fn address(&self) -> &AccountIdOf<Self::T> {
 			&69
 		}
 		fn balance(&self) -> u64 {
@@ -367,25 +370,26 @@ mod tests {
 			value: u64,
 			gas_meter: &mut GasMeter<Test>,
 			input_data: Vec<u8>,
-		) -> Result<(u64, ExecReturnValue), ExecError> {
-			(**self).instantiate(code, value, gas_meter, input_data)
+			salt: u64,
+		) -> Result<(AccountIdOf<Self::T>, ExecReturnValue), ExecError> {
+			(**self).instantiate(code, value, gas_meter, input_data, salt)
 		}
 		fn transfer(
 			&mut self,
-			to: &u64,
+			to: &AccountIdOf<Self::T>,
 			value: u64,
 		) -> Result<(), DispatchError> {
 			(**self).transfer(to, value)
 		}
 		fn terminate(
 			&mut self,
-			beneficiary: &u64,
+			beneficiary: &AccountIdOf<Self::T>,
 		) -> Result<(), DispatchError> {
 			(**self).terminate(beneficiary)
 		}
 		fn call(
 			&mut self,
-			to: &u64,
+			to: &AccountIdOf<Self::T>,
 			value: u64,
 			gas_meter: &mut GasMeter<Test>,
 			input_data: Vec<u8>,
@@ -394,7 +398,7 @@ mod tests {
 		}
 		fn restore_to(
 			&mut self,
-			dest: u64,
+			dest: AccountIdOf<Self::T>,
 			code_hash: H256,
 			rent_allowance: u64,
 			delta: Vec<StorageKey>,
@@ -406,10 +410,10 @@ mod tests {
 				delta,
 			)
 		}
-		fn caller(&self) -> &u64 {
+		fn caller(&self) -> &AccountIdOf<Self::T> {
 			(**self).caller()
 		}
-		fn address(&self) -> &u64 {
+		fn address(&self) -> &AccountIdOf<Self::T> {
 			(**self).address()
 		}
 		fn balance(&self) -> u64 {
