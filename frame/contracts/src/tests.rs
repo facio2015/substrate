@@ -17,7 +17,7 @@
 use crate::{
 	BalanceOf, ContractInfo, ContractInfoOf, GenesisConfig, Module,
 	RawAliveContractInfo, RawEvent, Trait, TrieId, Schedule, gas::Gas,
-	Error, Config, RuntimeReturnCode,
+	Error, Config, RuntimeReturnCode, storage::Storage,
 };
 use assert_matches::assert_matches;
 use hex_literal::*;
@@ -37,6 +37,7 @@ use frame_support::{
 };
 use std::cell::RefCell;
 use frame_system::{self as system, EventRecord, Phase};
+use once_cell::unsync::Lazy;
 
 mod contracts {
 	// Re-export contents of the root. This basically
@@ -68,28 +69,30 @@ impl_outer_dispatch! {
 #[macro_use]
 pub mod test_utils {
 	use super::{Test, Balances};
-	use crate::{ContractInfoOf, CodeHash};
-	use crate::storage::Storage;
-	use crate::exec::StorageKey;
+	use crate::{
+		ContractInfoOf, CodeHash,
+		storage::Storage,
+		exec::{StorageKey, AccountIdOf},
+	};
 	use frame_support::{StorageMap, traits::Currency};
 
-	pub fn set_storage(addr: &u64, key: &StorageKey, value: Option<Vec<u8>>) {
+	pub fn set_storage(addr: &AccountIdOf<Test>, key: &StorageKey, value: Option<Vec<u8>>) {
 		let contract_info = <ContractInfoOf::<Test>>::get(&addr).unwrap().get_alive().unwrap();
 		Storage::<Test>::write(&1, &contract_info.trie_id, key, value).unwrap();
 	}
-	pub fn get_storage(addr: &u64, key: &StorageKey) -> Option<Vec<u8>> {
+	pub fn get_storage(addr: &AccountIdOf<Test>, key: &StorageKey) -> Option<Vec<u8>> {
 		let contract_info = <ContractInfoOf::<Test>>::get(&addr).unwrap().get_alive().unwrap();
 		Storage::<Test>::read(&contract_info.trie_id, key)
 	}
-	pub fn place_contract(address: &u64, code_hash: CodeHash<Test>) {
+	pub fn place_contract(address: &AccountIdOf<Test>, code_hash: CodeHash<Test>) {
 		let trie_id = Storage::<Test>::generate_trie_id(address);
 		Storage::<Test>::place_contract(&address, trie_id, code_hash).unwrap()
 	}
-	pub fn set_balance(who: &u64, amount: u64) {
+	pub fn set_balance(who: &AccountIdOf<Test>, amount: u64) {
 		let imbalance = Balances::deposit_creating(who, amount);
 		drop(imbalance);
 	}
-	pub fn get_balance(who: &u64) -> u64 {
+	pub fn get_balance(who: &AccountIdOf<Test>) -> u64 {
 		Balances::free_balance(who)
 	}
 	macro_rules! assert_return_code {
@@ -207,10 +210,10 @@ type Contracts = Module<Test>;
 type System = frame_system::Module<Test>;
 type Randomness = pallet_randomness_collective_flip::Module<Test>;
 
-const ALICE: u64 = 1;
-const BOB: u64 = 2;
-const CHARLIE: u64 = 3;
-const DJANGO: u64 = 4;
+pub const ALICE: Lazy<AccountId32> = Lazy::new(|| [1u8; 32].into());
+pub const BOB: Lazy<AccountId32> = Lazy::new(|| [2u8; 32].into());
+pub const CHARLIE: Lazy<AccountId32> = Lazy::new(|| [3u8; 32].into());
+pub const DJANGO: Lazy<AccountId32> = Lazy::new(|| [4u8; 32].into());
 
 const GAS_LIMIT: Gas = 10_000_000_000;
 
@@ -295,8 +298,8 @@ fn account_removal_does_not_remove_storage() {
 	use self::test_utils::{set_storage, get_storage};
 
 	ExtBuilder::default().existential_deposit(100).build().execute_with(|| {
-		let trie_id1 = <Test as Trait>::TrieIdGenerator::trie_id(&1);
-		let trie_id2 = <Test as Trait>::TrieIdGenerator::trie_id(&2);
+		let trie_id1 = Storage::<Test>::generate_trie_id(*ALICE);
+		let trie_id2 = Storage::<Test>::generate_trie_id(*BOB);
 		let key1 = &[1; 32];
 		let key2 = &[2; 32];
 

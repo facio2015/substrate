@@ -4449,6 +4449,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex-literal",
+ "once_cell 1.4.1",
  "pallet-balances",
  "pallet-contracts-primitives",
  "pallet-randomness-collective-flip",

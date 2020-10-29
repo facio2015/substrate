@@ -32,6 +32,7 @@ wasmi-validation = { version = "0.3.0", default-features = false }
 [dev-dependencies]
 assert_matches = "1.3.0"
 hex-literal = "0.3.1"
+once_cell = "1.4.1"
 pallet-balances = { version = "2.0.0", path = "../balances" }
 pallet-timestamp = { version = "2.0.0", path = "../timestamp" }
 pallet-randomness-collective-flip = { version = "2.0.0", path = "../randomness-collective-flip" }
