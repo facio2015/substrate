@@ -160,13 +160,15 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{
+		CodeHash, BalanceOf, Error, Module as Contracts,
+		exec::{Ext, StorageKey, ExecReturnValue, ReturnFlags, ExecError, ErrorOrigin},
+		gas::{Gas, GasMeter},
+		tests::{Test, Call, ALICE, BOB},
+		wasm::prepare::prepare_contract,
+	};
 	use std::collections::HashMap;
 	use sp_core::H256;
-	use crate::exec::{Ext, StorageKey, ExecReturnValue, ReturnFlags, ExecError, ErrorOrigin};
-	use crate::gas::{Gas, GasMeter};
-	use crate::tests::{Test, Call};
-	use crate::wasm::prepare::prepare_contract;
-	use crate::{CodeHash, BalanceOf, Error};
 	use hex_literal::hex;
 	use sp_runtime::DispatchError;
 	use frame_support::weights::Weight;
@@ -178,7 +180,7 @@ mod tests {
 
 	#[derive(Debug, PartialEq, Eq)]
 	struct RestoreEntry {
-		dest: u64,
+		dest: AccountIdOf<Test>,
 		code_hash: H256,
 		rent_allowance: u64,
 		delta: Vec<StorageKey>,
@@ -195,7 +197,7 @@ mod tests {
 
 	#[derive(Debug, PartialEq, Eq)]
 	struct TerminationEntry {
-		beneficiary: u64,
+		beneficiary: AccountIdOf<Test>,
 	}
 
 	#[derive(Debug, PartialEq, Eq)]
@@ -215,7 +217,6 @@ mod tests {
 		restores: Vec<RestoreEntry>,
 		// (topics, data)
 		events: Vec<(Vec<H256>, Vec<u8>)>,
-		next_account_id: u64,
 	}
 
 	impl Ext for MockExt {
@@ -242,11 +243,8 @@ mod tests {
 				gas_left: gas_meter.gas_left(),
 				salt,
 			});
-			let address = self.next_account_id;
-			self.next_account_id += 1;
-
 			Ok((
-				address,
+				Contracts::<Test>::contract_address(&*ALICE, code_hash, salt),
 				ExecReturnValue {
 					flags: ReturnFlags::empty(),
 					data: Vec::new(),
@@ -306,10 +304,10 @@ mod tests {
 			Ok(())
 		}
 		fn caller(&self) -> &AccountIdOf<Self::T> {
-			&42
+			&*ALICE
 		}
 		fn address(&self) -> &AccountIdOf<Self::T> {
-			&69
+			&*BOB
 		}
 		fn balance(&self) -> u64 {
 			228
@@ -459,7 +457,11 @@ mod tests {
 		input_data: Vec<u8>,
 		ext: E,
 		gas_meter: &mut GasMeter<E::T>,
-	) -> ExecResult {
+	) -> ExecResult
+	where
+		<E::T as frame_system::Trait>::AccountId:
+			UncheckedFrom<<E::T as frame_system::Trait>::Hash> + AsRef<[u8]>
+	{
 		use crate::exec::Vm;
 
 		let wasm = wat::parse_str(wat).unwrap();
@@ -501,13 +503,12 @@ mod tests {
 	)
 	(func (export "deploy"))
 
-	;; Destination AccountId to transfer the funds.
-	;; Represented by u64 (8 bytes long) in little endian.
-	(data (i32.const 4) "\07\00\00\00\00\00\00\00")
+	;; Destination AccountId (ALICE)
+	(data (i32.const 4) "\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01\01")
 
 	;; Amount of value to transfer.
 	;; Represented by u64 (8 bytes long) in little endian.
-	(data (i32.const 12) "\99\00\00\00\00\00\00\00")
+	(data (i32.const 36) "\99\00\00\00\00\00\00\00")
 )
 "#;
 
@@ -524,7 +525,7 @@ mod tests {
 		assert_eq!(
 			&mock_ext.transfers,
 			&[TransferEntry {
-				to: 7,
+				to: *ALICE,
 				value: 153,
 				data: Vec::new(),
 			}]
