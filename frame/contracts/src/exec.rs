@@ -774,13 +774,14 @@ fn deposit_event<T: Trait>(
 mod tests {
 	use super::{
 		BalanceOf, Event, ExecResult, ExecutionContext, Ext, Loader,
-		RawEvent, Vm, ReturnFlags, ExecError, ErrorOrigin
+		RawEvent, Vm, ReturnFlags, ExecError, ErrorOrigin,
 	};
 	use crate::{
 		gas::GasMeter, tests::{ExtBuilder, Test, MetaEvent},
 		exec::ExecReturnValue, CodeHash, Config,
 		gas::Gas,
-		storage, Error
+		storage::Storage,
+		Error,
 	};
 	use crate::tests::test_utils::{place_contract, set_balance, get_balance};
 	use sp_runtime::DispatchError;
@@ -1312,7 +1313,7 @@ mod tests {
 
 			// Check that the newly created account has the expected code hash and
 			// there are instantiation event.
-			assert_eq!(storage::code_hash::<Test>(&instantiated_contract_address).unwrap(), dummy_ch);
+			assert_eq!(Storage::<Test>::code_hash(&instantiated_contract_address).unwrap(), dummy_ch);
 			assert_eq!(&events(), &[
 				RawEvent::Instantiated(ALICE, instantiated_contract_address)
 			]);
@@ -1344,7 +1345,7 @@ mod tests {
 			);
 
 			// Check that the account has not been created.
-			assert!(storage::code_hash::<Test>(&instantiated_contract_address).is_err());
+			assert!(Storage::<Test>::code_hash(&instantiated_contract_address).is_err());
 			assert!(events().is_empty());
 		});
 	}
@@ -1389,7 +1390,7 @@ mod tests {
 
 			// Check that the newly created account has the expected code hash and
 			// there are instantiation event.
-			assert_eq!(storage::code_hash::<Test>(&instantiated_contract_address).unwrap(), dummy_ch);
+			assert_eq!(Storage::<Test>::code_hash(&instantiated_contract_address).unwrap(), dummy_ch);
 			assert_eq!(&events(), &[
 				RawEvent::Instantiated(BOB, instantiated_contract_address)
 			]);
